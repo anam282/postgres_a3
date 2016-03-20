@@ -456,6 +456,9 @@ typedef struct RelOptInfo
 	List	   *joininfo;		/* RestrictInfo structures for join clauses
 								 * involving this rel */
 	bool		has_eclass_joins;		/* T means joininfo is incomplete */
+        /* CS448 */
+        bool isForcedJoin;
+        ForcedJoinAlgorithm forcedJoinAlgorithm;
 } RelOptInfo;
 
 /*
@@ -1020,6 +1023,8 @@ typedef struct MergePath
 	List	   *outersortkeys;	/* keys for explicit sort, if any */
 	List	   *innersortkeys;	/* keys for explicit sort, if any */
 	bool		materialize_inner;		/* add Materialize to inner? */
+        /* CS448 */
+        bool isForced;
 } MergePath;
 
 /*
@@ -1036,6 +1041,8 @@ typedef struct HashPath
 	JoinPath	jpath;
 	List	   *path_hashclauses;		/* join clauses used for hashing */
 	int			num_batches;	/* number of batches expected */
+        /* CS448 */
+        bool isForced;
 } HashPath;
 
 /*

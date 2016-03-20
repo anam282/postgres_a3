@@ -343,6 +343,24 @@ set_cheapest(RelOptInfo *parent_rel)
 }
 
 /*
+ * CS448 helper function to check if the path matches user hints
+ */
+static bool is_forced(Path *path)
+{
+            if (IsA(path, HashPath))
+            {
+                HashPath *hp = (HashPath *) path;
+                return hp->isForced;
+            }
+            else if (IsA(path, MergePath))
+            {
+                MergePath *mp = (MergePath *) path;
+                return mp->isForced;
+            }
+            return false;
+}
+        
+/*
  * add_path
  *	  Consider a potential implementation path for the specified parent rel,
  *	  and add it to the rel's pathlist if it is worthy of consideration.
@@ -408,7 +426,8 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 	 * 2) You will probably need to modify this function according to the specifications of the assignment
 	 *    and how you designed the hint propagation and checking.
 	 */
-
+        bool isForcedNew = is_forced(new_path);
+        bool isForcedOld;
 	/*
 	 * This is a convenient place to check for query cancel --- no part of the
 	 * planner goes very long without calling add_path().
@@ -558,7 +577,19 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 			}
 		}
 
-		/*
+		/* CS448 check conditions for adding path */
+                isForcedOld = is_forced(old_path);
+                if (!isForcedOld && isForcedNew)
+                {
+                    remove_old = true;
+                    accept_new = true;
+                }
+                else if (isForcedOld & !isForcedNew)
+                {
+                    remove_old = false;
+                    accept_new = false;
+                }
+                /*
 		 * Remove current element from pathlist if dominated by new.
 		 */
 		if (remove_old)
@@ -1933,7 +1964,10 @@ create_mergejoin_path(PlannerInfo *root,
 	pathnode->path_mergeclauses = mergeclauses;
 	pathnode->outersortkeys = outersortkeys;
 	pathnode->innersortkeys = innersortkeys;
-	/* pathnode->materialize_inner will be set by final_cost_mergejoin */
+	/* CS448 */
+        if (joinrel->isForcedJoin && joinrel->forcedJoinAlgorithm == MERGE_JOIN)
+            pathnode->isForced = true;
+        /* pathnode->materialize_inner will be set by final_cost_mergejoin */
 
 	final_cost_mergejoin(root, pathnode, workspace, sjinfo);
 
@@ -1999,7 +2033,10 @@ create_hashjoin_path(PlannerInfo *root,
 	pathnode->jpath.innerjoinpath = inner_path;
 	pathnode->jpath.joinrestrictinfo = restrict_clauses;
 	pathnode->path_hashclauses = hashclauses;
-	/* final_cost_hashjoin will fill in pathnode->num_batches */
+	/* CS448 */
+        if (joinrel->isForcedJoin && joinrel->forcedJoinAlgorithm == HASH_JOIN) 
+            pathnode->isForced = true;
+        /* final_cost_hashjoin will fill in pathnode->num_batches */
 
 	final_cost_hashjoin(root, pathnode, workspace, sjinfo, semifactors);
 

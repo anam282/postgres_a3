@@ -586,6 +586,7 @@ make_join_rel(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2)
 	 * YOUR CODE HERE
 	 * Add any variable declarations here, if needed
 	 */
+        List *forcedjoins = root->glob->forcedjoins;
 
 	/* We should never try to join two overlapping sets of rels. */
 	Assert(!bms_overlap(rel1->relids, rel2->relids));
@@ -647,6 +648,23 @@ make_join_rel(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2)
 	 * If applicable, the new paths of this joinrel iteration that match the hint should
 	 * be selected by the optimizer. (See add_path function in pathnode.c)
 	 */
+        if (forcedjoins)
+        {
+            ListCell *l;
+            foreach(l, forcedjoins)
+            {
+                ForcedJoin *forcedjoin = (ForcedJoin *)lfirst(l);
+                if (bms_equal(forcedjoin->left_relids, rel1->relids) && 
+                    bms_equal(forcedjoin->right_relids, rel2->relids))
+                {
+                    joinrel->isForcedJoin = true;
+                    joinrel->forcedJoinAlgorithm = forcedjoin->join_algorithm;
+                    break; 
+                }
+                else 
+                    joinrel->isForcedJoin = false;
+            }
+        }
 
 	/*
 	 * If we've already proven this join is empty, we needn't consider any

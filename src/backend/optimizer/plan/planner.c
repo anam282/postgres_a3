@@ -112,6 +112,7 @@ static void get_column_info_for_window(PlannerInfo *root, WindowClause *wc,
 						   int *ordNumCols,
 						   AttrNumber **ordColIdx,
 						   Oid **ordOperators);
+static void getUserHints(Node *jtnode, List **jointrees);
 
 /*****************************************************************************
  *
@@ -151,6 +152,7 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	/* CS448
 	 * YOUR CODE HERE - add needed variables
 	 */
+        //char msg[100];
 
 	/* Cursor options may come from caller or from DECLARE CURSOR stmt */
 	if (parse->utilityStmt &&
@@ -184,7 +186,22 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	 * Add proper code to populate the glob->forcedjoins list
 	 * with ForcedJoin objects that you extract from the parsed query "parse"
 	 * */
+        glob->forcedjoins = NIL;
+        getUserHints((Node *)parse->jointree, &glob->forcedjoins); 
 
+        /*if (glob->forcedjoins)
+        {
+            ListCell *l;
+            foreach(l, glob->forcedjoins)
+            {
+                ForcedJoin *fj = (ForcedJoin *)lfirst(l);
+                if (fj->join_algorithm == HASH_JOIN) strcpy(msg, "Hash Join");
+                else if (fj->join_algorithm == MERGE_JOIN) strcpy(msg, "Merge Join");
+                elog(LOG, msg);
+            }
+        }
+        else elog(LOG, "Null"); */
+            
 	/* Determine what fraction of the plan is likely to be scanned */
 	if (cursorOptions & CURSOR_OPT_FAST_PLAN)
 	{
@@ -3567,4 +3584,38 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 									  NULL, 1.0);
 
 	return (seqScanAndSortPath.total_cost < indexScanPath->path.total_cost);
+}
+
+        /* CS448 Helper Function to extract user hints from jointree and
+         * populate glob->forcedjoins with List of ForcedJoin Objects
+         */
+static void getUserHints(Node *jtnode, List **forcedjoins)
+{
+        if (!jtnode)
+            return;
+        else if (IsA(jtnode, RangeTblRef))
+            return;
+        else if (IsA(jtnode, FromExpr))
+        {
+            FromExpr *f = (FromExpr *)jtnode;
+            ListCell *l;
+            foreach(l, f->fromlist)
+            {
+                getUserHints(lfirst(l), forcedjoins);
+            }
+        }
+        else if (IsA(jtnode, JoinExpr))
+        {
+            JoinExpr *j = (JoinExpr *)jtnode;
+            if (j->isForcedJoin)
+            {
+                ForcedJoin *forcedjoin = makeNode(ForcedJoin);
+                forcedjoin->join_algorithm = j->forcedJoinAlgorithm;
+                forcedjoin->left_relids = get_base_rel_indexes(j->larg);
+                forcedjoin->right_relids = get_base_rel_indexes(j->rarg);
+                *forcedjoins = lappend(*forcedjoins, forcedjoin);
+            }
+            getUserHints(j->larg, forcedjoins);
+            getUserHints(j->rarg, forcedjoins);
+        }
 }
