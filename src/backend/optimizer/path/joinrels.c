@@ -654,8 +654,10 @@ make_join_rel(PlannerInfo *root, RelOptInfo *rel1, RelOptInfo *rel2)
             foreach(l, forcedjoins)
             {
                 ForcedJoin *forcedjoin = (ForcedJoin *)lfirst(l);
-                if (bms_equal(forcedjoin->left_relids, rel1->relids) && 
-                    bms_equal(forcedjoin->right_relids, rel2->relids))
+                if ((bms_equal(forcedjoin->left_relids, rel1->relids) && 
+                    bms_is_subset(forcedjoin->right_relids, rel2->relids)) ||
+                    (bms_is_subset(forcedjoin->right_relids, rel1->relids) &&
+                    bms_equal(forcedjoin->left_relids, rel2->relids)))
                 {
                     joinrel->isForcedJoin = true;
                     joinrel->forcedJoinAlgorithm = forcedjoin->join_algorithm;
